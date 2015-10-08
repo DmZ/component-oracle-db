@@ -94,11 +94,15 @@ application:
           db-host: { type: publish-signal(string), name: "Database Listener IP" }
           db-port: { type: publish-signal(int), name: "Database Listener port" }
           db-sid: { type: publish-signal(string), name: "Database SID" }
+          users-graph: { type: "publish-signal(map<string, object>)", name: "Schemas usage" }
+          cpu-graph: { type: "publish-signal(map<string, object>)", name: "CPU usage" }
         props:
           oracle_db_ee_install: consume-signal(map<string, object>)
       required: [ props ]
       configuration:
         input.instance-prefix: "DB"
+        configuration.schedule:
+          metrics: "0 0/2 * * * ? *"
         configuration.workflows:
           launch:
             steps:
@@ -197,6 +201,10 @@ application:
                 value: "{$.listener-port}"
               db-sid:
                 value: "{$.db-sid}"
+              users-graph:
+                value: {}
+              cpu-graph:
+                value: {}
 
           create-user:
             steps:
@@ -292,6 +300,30 @@ application:
                         dp:
                           url: "{$.dmp-url}"
                           params: "{$.dmp-params}"
+
+          metrics:
+            steps:
+              - metrics:
+                  action: chefsolo
+                  parameters:
+                    version: "11.16.2"
+                    roles: [ default ]
+                    recipeUrl: "{$.recipe-url}"
+                    runList: [ "recipe[oracle-database::metrics]" ]
+                    jattrs:
+                      oracle:
+                        db:
+                          sid: "{$.db-sid}"
+                          sys_password: "{$.db-sys-password}"
+                  output:
+                    attrs: chefState
+            return:
+              users-graph:
+                value:
+                  items: "{$.attrs[*][0].oracle.metrics.schemas}"
+              cpu-graph:
+                value:
+                  items: "{$.attrs[*][0].oracle.metrics.cpu}"
 
     metadata:
       type: cobalt.common.Constants
